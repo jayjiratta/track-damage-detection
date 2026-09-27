@@ -1,0 +1,12 @@
+# PyTorch with CUDA: install the build matching your CUDA version from https://pytorch.org first
+torch>=2.1
+torchvision>=0.16
+ultralytics>=8.4   # YOLO26 needs 8.4+
+opencv-python>=4.8
+numpy
+scipy
+scikit-learn
+scikit-image      # LBP baseline (evaluation only)
+matplotlib
+pandas
+psutil

@@ -1,0 +1,56 @@
+{
+  "A_scoring": {
+    "LBP": {
+      "pixel_auroc": 0.958261401459813,
+      "image_auroc": 0.7424691358024692,
+      "threshold_p99.5_calib": 0.6924676895141602,
+      "eval_recall_at_threshold": 0.09550706033376123,
+      "eval_clean_fpr_at_threshold": 0.006473363493124522
+    },
+    "PaDiM": {
+      "pixel_auroc": 0.9786777943524689,
+      "image_auroc": 0.9891358024691358,
+      "threshold_p99.5_calib": 13.73264217376709,
+      "eval_recall_at_threshold": 1.0,
+      "eval_clean_fpr_at_threshold": 0.025739397321428572
+    }
+  },
+  "protocol": {
+    "n_holdout": 45,
+    "n_calib": 23,
+    "n_eval": 22,
+    "probe_box": [
+      0.3,
+      0.7,
+      0.62,
+      0.95
+    ],
+    "operating_percentile": 99.5
+  },
+  "B_system": {
+    "LBP": {
+      "clean_regions_per_frame_mean": 99.0,
+      "clean_frames_with_zero_regions": 0.0,
+      "clean_flagged_fraction_of_roi_mean": 0.1953334307144133,
+      "synthetic_defect_detection_rate": 1.0,
+      "synthetic_defects_total": 48,
+      "false_regions_per_defect_frame_mean": 76.86363636363636
+    },
+    "PaDiM": {
+      "clean_regions_per_frame_mean": 2.409090909090909,
+      "clean_frames_with_zero_regions": 0.3181818181818182,
+      "clean_flagged_fraction_of_roi_mean": 0.022775395349782183,
+      "synthetic_defect_detection_rate": 1.0,
+      "synthetic_defects_total": 48,
+      "false_regions_per_defect_frame_mean": 2.090909090909091
+    },
+    "PaDiM + paint filter": {
+      "clean_regions_per_frame_mean": 0.6818181818181818,
+      "clean_frames_with_zero_regions": 0.5454545454545454,
+      "clean_flagged_fraction_of_roi_mean": 0.0007712156478691729,
+      "synthetic_defect_detection_rate": 0.8125,
+      "synthetic_defects_total": 48,
+      "false_regions_per_defect_frame_mean": 0.6363636363636364
+    }
+  }
+}

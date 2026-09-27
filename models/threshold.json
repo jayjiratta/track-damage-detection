@@ -1,0 +1,14 @@
+{
+  "yolo": {
+    "threshold": 13.392714500427246,
+    "percentile": 99.5,
+    "n_frames": 23,
+    "n_pixels": 10081759
+  },
+  "traditional": {
+    "threshold": 13.837325096130371,
+    "percentile": 99.5,
+    "n_frames": 23,
+    "n_pixels": 11454737
+  }
+}

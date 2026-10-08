@@ -4,8 +4,9 @@ Running-track surface damage detection: **YOLOv26 segmentation** restricts the s
 (ROI), **PaDiM** (Patch Distribution Modeling) flags surface regions that differ from normal track surface,
 and a simple tracker links detections across video frames to count each damage once.
 
-Demo video (method 2): [`results/demo/demo_pipeline.mp4`](results/demo/demo_pipeline.mp4). It has four segments:
-a normal surface, a lane line on a curve, a real crack with tracking and a unique count, and road markings.
+Demo video: [`results/demo/demo_pipeline.mp4`](results/demo/demo_pipeline.mp4) compares method 1 (top) and
+method 2 (bottom) on the same frames: the PaDiM anomaly map inside the track mask, and the damage mask with tracked
+regions and the unique count. It has four segments: a normal surface, a lane line on a curve, a real crack, and road markings.
 
 | Stage | What |
 |---|---|
@@ -74,8 +75,8 @@ Reproduce the report numbers:
 ```
 python evaluation/benchmark_pipeline.py --backbone resnet18     # method 1: time / memory
 python evaluation/benchmark_pipeline.py --backbone shared_r18   # method 2
-python evaluation/make_demo_video.py <video>                    # demo video + counts_method2.csv
-python evaluation/make_demo_video.py <video> --method 1 --counts-only
+python evaluation/make_demo_video.py <video>                    # method 1 vs 2 demo + counts_method{1,2}.csv
+python evaluation/make_demo_video.py <video> --method 2         # one method, full 2x2 panel
 python evaluation/figure_traditional_steps.py <image>
 cd roi_experiments
 python train/train_yolo26n_seg.py                               # optional: retrain method 1 track model

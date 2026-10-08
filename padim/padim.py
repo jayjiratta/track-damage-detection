@@ -223,6 +223,28 @@ class PaDiM:
         y0, x0 = int(round(pad_y * stride)), int(round(pad_x * stride))
         return big[y0:in_h - y0, x0:in_w - x0]
 
+    # ------------------------------------------------------- spatial resolution
+    def _input_scale(self, H: int, W: int) -> tuple[float, float]:
+        """Network-input pixels per image pixel (x, y)."""
+        if self.backbone_name == "resnet18":
+            return INPUT_W / W, INPUT_H / H
+        gh, gw = self.grid_hw
+        r = min(gh * self.grid_stride / H, gw * self.grid_stride / W)     # YOLO letterbox scale
+        return r, r
+
+    def cell_px(self, H: int, W: int) -> tuple[float, float]:
+        """(w, h) in image pixels of one patch of the anomaly map: the smallest
+        area PaDiM gives its own score to."""
+        sx, sy = self._input_scale(H, W)
+        stride = self.grid_stride if self.backbone_name != "resnet18" else SHARED_R18_STRIDE[4]
+        return stride / sx, stride / sy
+
+    def coarse_cell_px(self, H: int, W: int) -> tuple[float, float]:
+        """(w, h) in image pixels of one cell of the coarsest feature map used
+        (layer3, stride 16): structures closer than this share one layer3 feature."""
+        sx, sy = self._input_scale(H, W)
+        return SHARED_R18_STRIDE[6] / sx, SHARED_R18_STRIDE[6] / sy
+
     # --------------------------------------------------------------- save/load
     def save(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)

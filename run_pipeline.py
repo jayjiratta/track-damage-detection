@@ -61,7 +61,7 @@ def run_video(pipe, path, out_dir, max_frames, start=0, stride=1):
                 break
             if (idx - start) % stride == 0:
                 res = pipe(frame)
-                tracks = tracker.update(merge_regions(res.regions))
+                tracks = tracker.update(merge_regions(res.regions, res.coarse_cell))
                 panel = render_summary(frame, res, f"{path.name}  frame {idx}  |  ROI: {pipe.roi_method}",
                                        tracks=tracks, unique_count=tracker.unique_count)
                 panel = cv2.resize(panel, (panel.shape[1] // 2, panel.shape[0] // 2))

@@ -119,7 +119,7 @@ def main():
                 parts = []
                 for m in methods:
                     res = pipes[m](frame)
-                    tracks = trackers[m].update(merge_regions(res.regions))
+                    tracks = trackers[m].update(merge_regions(res.regions, res.coarse_cell))
                     flagged[m] += bool(res.regions)
                     if args.counts_only:
                         continue

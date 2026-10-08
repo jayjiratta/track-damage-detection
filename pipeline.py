@@ -6,9 +6,12 @@ Track damage detection = track ROI (YOLOv26 segmentation) + PaDiM anomaly map.
               don't count as damage.
   2. Anomaly  PaDiM Mahalanobis-distance map (padim/padim.py).
   3. Damage   anomaly > threshold inside the ROI, small open, components
-              smaller than MIN_DAMAGE_AREA_PX dropped.
-  4. Regions  connected damage regions (area, bbox) -> tracker.py links them
-              across frames and counts each damage once.
+              smaller than one anomaly-map patch (PaDiM.cell_px) dropped: PaDiM
+              gives one score per patch, so anything smaller is an artifact of
+              upsampling the map to the image size.
+  4. Regions  connected damage regions (area, bbox) -> tracker.py merges and
+              tracks them across frames and counts each damage once, using the
+              layer3 feature cell (DamageResult.coarse_cell) as its spatial unit.
 
 Two systems (the project's comparison):
 
@@ -45,7 +48,6 @@ METHODS = {1: ("yolo", "resnet18"), 2: ("yolo_r18", "shared_r18")}   # (roi_meth
 THRESHOLD_PATH = ROOT / "models" / "threshold.json"
 
 ROI_ERODE_PX = 15
-MIN_DAMAGE_AREA_PX = 100
 
 
 def padim_weights(backbone: str) -> Path:
@@ -63,6 +65,7 @@ class DamageResult:
     damage: np.ndarray
     threshold: float
     regions: list[dict] = field(default_factory=list)
+    coarse_cell: tuple[float, float] = (0.0, 0.0)   # (w, h) px of one layer3 feature cell
 
 
 def erode_roi(roi: np.ndarray) -> np.ndarray:
@@ -102,17 +105,19 @@ class DamagePipeline:
         dmg = ((anomaly > self.threshold) & (roi > 0)).astype(np.uint8) * 255
         dmg = cv2.morphologyEx(dmg, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
+        H, W = img_bgr.shape[:2]
+        cw, ch = self.padim.cell_px(H, W)
         n, labels, stats, _ = cv2.connectedComponentsWithStats(dmg, connectivity=8)
         damage = np.zeros_like(dmg)
         regions = []
         for i in range(1, n):
             x, y, w, h, area = (int(v) for v in stats[i])
-            if area < MIN_DAMAGE_AREA_PX:
+            if area < cw * ch:
                 continue
             damage[labels == i] = 255
             regions.append({"id": len(regions) + 1, "area_px": area, "bbox": [x, y, w, h],
                             "max_score": float(anomaly[labels == i].max())})
-        return DamageResult(roi, anomaly, damage, self.threshold, regions)
+        return DamageResult(roi, anomaly, damage, self.threshold, regions, self.padim.coarse_cell_px(H, W))
 
 
 # ------------------------------------------------------------------ drawing

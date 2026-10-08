@@ -12,8 +12,8 @@ regions and the unique count. It has four segments: a normal surface, a lane lin
 |---|---|
 | 1. Track ROI | YOLOv26 segmentation (or a traditional CV baseline: LAB a* + Otsu + field-of-view prior + edge snap) |
 | 2. Anomaly map | PaDiM on ResNet-18 layer1-3 features, fitted on normal frames only (no labels) |
-| 3. Damage mask | anomaly > calibrated threshold inside the eroded ROI; components < 100 px dropped |
-| 4. Count | regions merged into boxes, linked across frames, counted once after 4 consecutive matches |
+| 3. Damage mask | anomaly > calibrated threshold inside the eroded ROI; components smaller than one anomaly-map patch dropped |
+| 4. Count | regions closer than one layer3 feature cell merged (counted if they cover at least one cell), then SORT tracking (Bewley et al. 2016; IoU 0.3, 3 hits, max age 1); each track counted once |
 
 ## Two methods
 
@@ -39,7 +39,7 @@ train_padim.py         fit PaDiM -> models/padim_<backbone>.pt
 calibrate.py           damage threshold from held-out normal frames -> models/threshold.json
 roi/                   ROI methods (YOLO wrappers, traditional CV, FOV prior derivation)
 padim/                 PaDiM implementation (resnet18 and shared_r18 feature sources)
-evaluation/            benchmark, demo video, report figure
+evaluation/            benchmark, demo video, report figure, LBP baseline
 roi_experiments/       track segmentation: training (both track models) + test-set evaluation
 models/                track-model weights, PaDiM split, thresholds
 results/evaluation/    benchmarks + figure used in the report
@@ -88,10 +88,14 @@ python evaluation/run_final_evaluation.py                       # YOLOv26n vs tr
 
 ### Track ROI: YOLOv26n vs traditional CV (45 test images)
 
-| | IoU | Min IoU | Time per image (ms) | Memory (MB) |
-|---|---|---|---|---|
-| YOLOv26n-seg | **0.989 ± 0.005** | **0.965** | 13.9 (GPU) | 1294 |
-| Traditional CV | 0.909 ± 0.045 | 0.829 | 48.8 (CPU) | **52** |
+| | IoU | Min IoU | Time per image, CPU (ms) | Time per image, GPU (ms) | Memory, CPU run (MB) |
+|---|---|---|---|---|---|
+| YOLOv26n-seg | **0.989 ± 0.005** | **0.965** | 58.3 | **13.9** | 634 (1,294 on GPU) |
+| Traditional CV | 0.909 ± 0.045 | 0.829 | **48.8** | - | **52** |
+
+The traditional method's field-of-view prior (per-row 1st-99th percentile of the train masks + 5% margin) is needed: without it test IoU drops to
+0.890 (min 0.736). A tighter prior scores higher on the test set (same straight stretch as training) but cuts off >5% of the real track in
+35 of 194 route-wide frames (25th-75th percentile) versus 1 frame for the prior used.
 
 ### Method 1 vs method 2
 
@@ -113,12 +117,18 @@ Benchmarks: `results/evaluation/benchmark_*.json`.
 
 | Segment (frames) | Method 1 | Method 2 |
 |---|---|---|
-| Normal surface (1900-2138) | 1 | 1 |
-| Lane line on a curve (22350-22588) | 0 | 2 |
-| Real crack (21760-22058) | 15 | 8 |
-| Road markings (4100-4338) | 12 | 13 |
+| Normal surface (1900-2138) | 0 | 0 |
+| Lane line on a curve (22350-22588) | 0 | 0 |
+| Real crack (21760-22058) | 6 | 9 |
+| Road markings (4100-4338) | 6 | 15 |
 
-From `results/demo/counts_method{1,2}.csv`. The counts are inflated by false alarms (next section).
+From `results/demo/counts_method{1,2}.csv`. The real crack is counted more than once (its detections drop out for a frame and the track
+restarts), and road markings are counted as damage (next section).
+
+### Traditional damage baseline (LBP)
+
+`evaluation/lbp_baseline.py`: LBP + local standard deviation, thresholded at the 82nd percentile of each image, so it flags
+~18% of the track in every frame, normal or not. A quantitative LBP vs PaDiM comparison needs expert-labeled damage masks.
 
 ## Known limitations
 

@@ -23,6 +23,7 @@ Usage:
     py evaluation/memory_benchmark.py --method all
     py evaluation/memory_benchmark.py --method yolo
     py evaluation/memory_benchmark.py --method traditional
+    py evaluation/memory_benchmark.py --method yolo --yolo-device cpu   # -> memory_yolo_cpu_log.csv
 """
 from __future__ import annotations
 
@@ -50,11 +51,11 @@ def get_rss_mb() -> float:
     return psutil.Process(os.getpid()).memory_info().rss / 1e6
 
 
-def benchmark_yolo(image_paths, out_csv: Path):
+def benchmark_yolo(image_paths, out_csv: Path, device: str | None = None):
     from ultralytics import YOLO
     import torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model = YOLO(str(WEIGHTS_PATH))
     model.to(device)
 
@@ -102,6 +103,8 @@ def _write_csv(out_csv: Path, rows: list[dict]):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--method", nargs="+", choices=["yolo", "traditional", "all"], default=["all"])
+    parser.add_argument("--yolo-device", choices=["cuda", "cpu"], default=None,
+                        help="YOLO device (default: cuda if available); cpu compares with the CPU-only traditional method")
     args = parser.parse_args()
     methods = ["yolo", "traditional"] if "all" in args.method else args.method
 
@@ -121,13 +124,14 @@ def main():
 
     method = methods[0]
     print(f"\n{'='*55}\n  Benchmarking memory: {method.upper()}\n{'='*55}")
-    out_csv = REPORT_DIR / f"memory_{method}_log.csv"
+    out_csv = REPORT_DIR / (f"memory_{method}_cpu_log.csv" if method == "yolo" and args.yolo_device == "cpu"
+                            else f"memory_{method}_log.csv")
 
     if method == "yolo":
         if not WEIGHTS_PATH.exists():
             print(f"  SKIP -- weights not found: {WEIGHTS_PATH}")
             return
-        benchmark_yolo(image_paths, out_csv)
+        benchmark_yolo(image_paths, out_csv, args.yolo_device)
     else:
         benchmark_traditional(image_paths, out_csv)
 

@@ -1,0 +1,40 @@
+# YOLO26-seg neck + Segment26 head on a FROZEN ImageNet ResNet-18 backbone.
+# Method 2 (shared backbone): the backbone is never fine-tuned, so its early
+# layers keep generic surface texture for PaDiM, while the YOLO neck/head
+# learn the track mask on top of the same features -> one CNN pass per frame
+# feeds both the track mask and PaDiM (layer1-3 of the ResNet, via hooks).
+# Train with freeze=[0] (the whole TorchVision module).
+
+nc: 1
+end2end: True
+reg_max: 1
+scales:
+  n: [0.50, 0.25, 1024]
+
+backbone:
+  # TorchVision split=True returns [x, conv1, bn1, relu, maxpool, layer1, layer2, layer3, layer4]
+  - [-1, 1, TorchVision, [512, resnet18, DEFAULT, True, 2, True]] # 0  frozen ResNet-18
+  - [0, 1, Index, [128, 6]] # 1  layer2  P3/8
+  - [0, 1, Index, [256, 7]] # 2  layer3  P4/16
+  - [0, 1, Index, [512, 8]] # 3  layer4  P5/32
+  - [-1, 1, SPPF, [1024, 5, 3, True]] # 4
+  - [-1, 2, C2PSA, [1024]] # 5
+
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 2], 1, Concat, [1]] # 7  cat P4
+  - [-1, 2, C3k2, [512, True]] # 8
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 1], 1, Concat, [1]] # 10 cat P3
+  - [-1, 2, C3k2, [256, True]] # 11 (P3/8)
+
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 8], 1, Concat, [1]] # 13 cat head P4
+  - [-1, 2, C3k2, [512, True]] # 14 (P4/16)
+
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 5], 1, Concat, [1]] # 16 cat head P5
+  - [-1, 1, C3k2, [1024, True, 0.5, True]] # 17 (P5/32)
+
+  - [[11, 14, 17], 1, Segment26, [nc, 32, 256]] # 18 Segment26(P3, P4, P5)

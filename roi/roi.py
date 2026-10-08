@@ -3,6 +3,8 @@ Track ROI (whole running-track area) -- from track-segmentation-ver2.
 
   yolo         YOLOv26n segmentation (default; ver2's final comparison found it
                more accurate and far more consistent at the track boundary)
+  yolo_r18     YOLO26-seg neck/head on a frozen ImageNet ResNet-18 backbone
+               (shares its backbone with PaDiM, backbone="shared_r18")
   traditional  ver2's classical CV method (color + FOV prior + edge snap);
                ~24x less memory than YOLO, but less accurate at the boundary
 """
@@ -16,6 +18,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 YOLO_WEIGHTS = ROOT / "models" / "yolo26n_track_seg.pt"
+YOLO_R18_WEIGHTS = ROOT / "models" / "yolo26_r18frozen_track_seg.pt"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from traditional_segment import segment_track_traditional
@@ -23,13 +26,13 @@ from traditional_segment import segment_track_traditional
 
 class TrackROI:
     def __init__(self, method: str = "yolo"):
-        if method not in ("yolo", "traditional"):
+        if method not in ("yolo", "yolo_r18", "traditional"):
             raise ValueError(f"unknown ROI method: {method}")
         self.method = method
         self.model = None
-        if method == "yolo":
+        if method in ("yolo", "yolo_r18"):
             from ultralytics import YOLO
-            self.model = YOLO(str(YOLO_WEIGHTS))
+            self.model = YOLO(str(YOLO_WEIGHTS if method == "yolo" else YOLO_R18_WEIGHTS))
 
     def __call__(self, img_bgr: np.ndarray) -> np.ndarray:
         """Binary mask (uint8 {0,255}) of the whole track area."""

@@ -1,0 +1,15 @@
+{
+  "roi_method": "yolo_r18",
+  "backbone": "shared_r18",
+  "n_frames": 189,
+  "roi_ms_mean": 33.746420104757554,
+  "padim_ms_mean": 7.743823278889987,
+  "total_ms_mean": 47.16166560956962,
+  "total_ms_std": 6.99471290934242,
+  "fps": 21.203661640760394,
+  "rss_mb": 1896.992768,
+  "rss_models_mb": 852.7544320000002,
+  "torch_gpu_peak_mb": 312.973312,
+  "padim_model_file_mb": 155.139122,
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU"
+}

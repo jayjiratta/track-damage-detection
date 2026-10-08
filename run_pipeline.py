@@ -2,7 +2,8 @@
 Run track damage detection on an image, a folder of images, or a video.
 
 Usage:
-    python run_pipeline.py <image|folder|video> [--roi yolo|traditional] [--out results]
+    python run_pipeline.py <image|folder|video> [--method 2|1] [--out results]
+    python run_pipeline.py <image|folder> --method 1 --roi traditional   # method 1 with the traditional ROI
     python run_pipeline.py video.mp4 --start 0 --stride 2 --max-frames 900
 
 Per image (folder/single): results/<stem>/summary_4panel.jpg + regions.json
@@ -19,7 +20,7 @@ import cv2
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from pipeline import DamagePipeline, render_summary
+from pipeline import METHODS, DamagePipeline, render_summary
 from tracker import DamageTracker, merge_regions
 
 IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -83,14 +84,21 @@ def run_video(pipe, path, out_dir, max_frames, start=0, stride=1):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input", type=Path)
-    ap.add_argument("--roi", default="yolo", choices=["yolo", "traditional"])
+    ap.add_argument("--method", type=int, default=2, choices=[1, 2],
+                    help="1: separate backbones (YOLOv26n + ResNet-18), 2: shared frozen ResNet-18")
+    ap.add_argument("--roi", choices=["yolo", "traditional"], help="method 1 only: override the track ROI")
     ap.add_argument("--out", type=Path, default=ROOT / "results")
     ap.add_argument("--max-frames", type=int, default=900, help="video only: frames to process")
     ap.add_argument("--start", type=int, default=0, help="video only: first frame")
     ap.add_argument("--stride", type=int, default=1, help="video only: process every N-th frame")
     args = ap.parse_args()
 
-    pipe = DamagePipeline(args.roi)
+    roi, backbone = METHODS[args.method]
+    if args.roi:
+        if args.method != 1:
+            ap.error("--roi only applies to --method 1")
+        roi = args.roi
+    pipe = DamagePipeline(roi, backbone)
     if args.input.is_dir():
         run_images(pipe, sorted(p for p in args.input.iterdir() if p.suffix.lower() in IMG_EXT), args.out)
     elif args.input.suffix.lower() in VID_EXT:

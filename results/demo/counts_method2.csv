@@ -1,0 +1,5 @@
+segment,start_frame,end_frame,processed_frames,frames_with_damage_regions,unique_count
+1/4  Normal track surface,1900,2138,120,29,1
+2/4  Lane line on a curve,22350,22588,120,58,2
+3/4  Real crack: detection + tracking + unique count,21760,22058,150,150,8
+4/4  Road markings (rare at each image position),4100,4338,120,106,13

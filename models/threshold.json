@@ -1,14 +1,14 @@
 {
-  "yolo": {
-    "threshold": 13.392714500427246,
+  "yolo+resnet18": {
+    "threshold": 13.915802955627441,
     "percentile": 99.5,
-    "n_frames": 23,
-    "n_pixels": 10081759
+    "n_frames": 97,
+    "n_pixels": 44747973
   },
-  "traditional": {
-    "threshold": 13.837325096130371,
+  "yolo_r18+shared_r18": {
+    "threshold": 11.910847663879395,
     "percentile": 99.5,
-    "n_frames": 23,
-    "n_pixels": 11454737
+    "n_frames": 97,
+    "n_pixels": 40962907
   }
 }

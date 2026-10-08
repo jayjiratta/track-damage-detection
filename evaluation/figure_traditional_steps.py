@@ -50,7 +50,7 @@ def main():
     prior_vis = overlay(img, otsu & prior, (0, 200, 255))
     cnts, _ = cv2.findContours(prior, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(prior_vis, cnts, -1, (255, 0, 255), 3)
-    a_vis = cv2.applyColorMap(cv2.normalize(a, None, 0, 255, cv2.NORM_MINMAX), cv2.COLORMAP_JET)
+    a_vis = cv2.normalize(a, None, 0, 255, cv2.NORM_MINMAX)          # a* shown as a grey-level image
 
     tiles = [tile(img, "(a) Input image"), tile(a_vis, "(b) a* channel (CIE L*a*b*)"),
              tile(otsu, "(c) Otsu threshold on a*"), tile(prior_vis, "(d) FOV prior (magenta) applied"),

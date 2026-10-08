@@ -1,23 +1,27 @@
 """
-Track damage detection = track ROI (ver2) + PaDiM anomaly map (damage-detection).
+Track damage detection = track ROI (YOLOv26 segmentation) + PaDiM anomaly map.
 
   1. ROI      whole-track mask (roi/roi.py), eroded by ROI_ERODE_PX so PaDiM
               patches that straddle the track border (half track, half grass)
               don't count as damage.
   2. Anomaly  PaDiM Mahalanobis-distance map (padim/padim.py).
   3. Damage   anomaly > threshold inside the ROI, small open, components
-              smaller than MIN_DAMAGE_AREA_PX dropped, and components that are
-              mostly white paint dropped (see PAINT_* below).
-  4. Count    connected damage regions (area, bbox).
+              smaller than MIN_DAMAGE_AREA_PX dropped.
+  4. Regions  connected damage regions (area, bbox) -> tracker.py links them
+              across frames and counts each damage once.
 
-Paint filter: PaDiM models each patch position separately, so painted
-markings that are rare and move around the frame (chevrons, distance text)
-score as anomalies even though they're normal track features. A damage
-component is dropped if more than PAINT_MAX_FRACTION of its area is white
-paint (low-saturation, bright pixels -- same HSV rule the earlier LBP demo
-used), dilated by PAINT_DILATE_PX so the blob's smoothed spill-over around
-the paint also counts. Trade-off: real damage lying mostly on a painted
-marking is dropped too.
+Two systems (the project's comparison):
+
+  method 1  roi_method="yolo",     backbone="resnet18"
+            separate backbones: YOLOv26n for the ROI and a separate ResNet-18
+            for PaDiM -- two CNN forward passes per frame.
+  method 2  roi_method="yolo_r18", backbone="shared_r18"
+            shared backbone: the track model is a YOLO26-seg neck/head on a
+            frozen ImageNet ResNet-18 and PaDiM uses that backbone's layer1-3
+            from the same forward pass -- one CNN pass per frame.
+
+No rule-based filtering: everything above the threshold inside the ROI is
+reported as damage.
 """
 from __future__ import annotations
 
@@ -35,16 +39,21 @@ sys.path.insert(0, str(ROOT / "padim"))
 from roi import TrackROI
 from padim import PaDiM
 
-PADIM_WEIGHTS = ROOT / "models" / "padim_resnet18.pt"
+BACKBONES = ("resnet18", "shared_r18")
+SHARED_ROI = {"shared_r18": "yolo_r18"}   # the shared backbone lives in this ROI model
+METHODS = {1: ("yolo", "resnet18"), 2: ("yolo_r18", "shared_r18")}   # (roi_method, backbone)
 THRESHOLD_PATH = ROOT / "models" / "threshold.json"
 
 ROI_ERODE_PX = 15
 MIN_DAMAGE_AREA_PX = 100
 
-PAINT_HSV_LO = (0, 0, 180)
-PAINT_HSV_HI = (180, 40, 255)
-PAINT_DILATE_PX = 9
-PAINT_MAX_FRACTION = 0.30
+
+def padim_weights(backbone: str) -> Path:
+    return ROOT / "models" / f"padim_{backbone}.pt"
+
+
+def threshold_key(roi_method: str, backbone: str) -> str:
+    return f"{roi_method}+{backbone}"
 
 
 @dataclass
@@ -61,44 +70,44 @@ def erode_roi(roi: np.ndarray) -> np.ndarray:
     return cv2.erode(roi, k)
 
 
-def paint_mask(img_bgr: np.ndarray) -> np.ndarray:
-    white = cv2.inRange(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV), PAINT_HSV_LO, PAINT_HSV_HI)
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * PAINT_DILATE_PX + 1,) * 2)
-    return cv2.dilate(white, k)
-
-
 class DamagePipeline:
-    def __init__(self, roi_method: str = "yolo", threshold: float | None = None,
-                 paint_filter: bool = True):
+    def __init__(self, roi_method: str = "yolo", backbone: str = "resnet18", threshold: float | None = None):
+        if backbone not in BACKBONES:
+            raise ValueError(f"unknown backbone: {backbone}")
+        if backbone in SHARED_ROI and roi_method != SHARED_ROI[backbone]:
+            raise ValueError(f"backbone='{backbone}' needs roi_method='{SHARED_ROI[backbone]}'")
         self.roi_method = roi_method
-        self.paint_filter = paint_filter
+        self.backbone = backbone
         self.roi = TrackROI(roi_method)
-        self.padim = PaDiM.load(PADIM_WEIGHTS)
+        self.padim = PaDiM.load(padim_weights(backbone), yolo=self.roi.model if backbone in SHARED_ROI else None)
         if threshold is None:
-            if not THRESHOLD_PATH.exists():
-                raise FileNotFoundError(f"{THRESHOLD_PATH} missing -- run calibrate.py first")
-            saved = json.loads(THRESHOLD_PATH.read_text())
-            if roi_method not in saved:
-                raise KeyError(f"no calibrated threshold for roi_method={roi_method} -- run calibrate.py")
-            threshold = saved[roi_method]["threshold"]
+            key = threshold_key(roi_method, backbone)
+            saved = json.loads(THRESHOLD_PATH.read_text()) if THRESHOLD_PATH.exists() else {}
+            if key not in saved:
+                raise KeyError(f"no calibrated threshold for {key} -- run calibrate.py")
+            threshold = saved[key]["threshold"]
         self.threshold = float(threshold)
 
-    def __call__(self, img_bgr: np.ndarray) -> DamageResult:
+    def roi_and_anomaly(self, img_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         roi = erode_roi(self.roi(img_bgr))
-        anomaly = self.padim.score(img_bgr)
+        if self.backbone in SHARED_ROI:    # reuse the features of the ROI forward pass
+            anomaly = self.padim.score(img_bgr, feats=self.padim.hook.get())
+        else:
+            anomaly = self.padim.score(img_bgr)
+        return roi, anomaly
+
+    def __call__(self, img_bgr: np.ndarray) -> DamageResult:
+        roi, anomaly = self.roi_and_anomaly(img_bgr)
 
         dmg = ((anomaly > self.threshold) & (roi > 0)).astype(np.uint8) * 255
         dmg = cv2.morphologyEx(dmg, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
-        paint = paint_mask(img_bgr) > 0 if self.paint_filter else None
         n, labels, stats, _ = cv2.connectedComponentsWithStats(dmg, connectivity=8)
         damage = np.zeros_like(dmg)
         regions = []
         for i in range(1, n):
             x, y, w, h, area = (int(v) for v in stats[i])
             if area < MIN_DAMAGE_AREA_PX:
-                continue
-            if paint is not None and paint[labels == i].mean() > PAINT_MAX_FRACTION:
                 continue
             damage[labels == i] = 255
             regions.append({"id": len(regions) + 1, "area_px": area, "bbox": [x, y, w, h],

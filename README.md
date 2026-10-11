@@ -107,10 +107,10 @@ The traditional method's field-of-view prior (per-row 1st-99th percentile of the
 | Peak GPU memory (MB) | 418 | **313** |
 | Process memory (MB) | 2,254 | **1,897** |
 | PaDiM model file (MB) | 290 | **155** |
-| Crack-line pixels flagged* | 35.4% | 36.7% |
-| Normal-track pixels flagged | 0.42% | 0.33% |
 
-\* Proxy on the real-crack frames; there is no expert damage ground truth yet, so this only compares the two methods.
+Pixel-level track-mask precision / recall on the test set at the 0.5 mask cut: method 1 0.991 / 0.998, method 2 0.989 / 0.996
+(instance-level mask mAP saturates at 0.995 because every image has one large track that both models always find).
+The test split is a random split of the same video as training, so these numbers may be optimistic.
 Benchmarks: `results/evaluation/benchmark_*.json`.
 
 ### Unique damage count (demo segments, every 2nd frame)
